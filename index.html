@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <!-- viewport-fit=cover を追加してSafe Area情報を有効化 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="余り計算電卓">
+    <title>余り計算電卓（体験版）</title>
+    <link rel="apple-touch-icon" href="icon.png">
+    <style>
+        /* Safe Area変数を定義 */
+        :root {
+            --sat: env(safe-area-inset-top, 0px);
+            --sar: env(safe-area-inset-right, 0px);
+            --sab: env(safe-area-inset-bottom, 0px);
+            --sal: env(safe-area-inset-left, 0px);
+        }
+
+        *, *::before, *::after {
+            box-sizing: border-box;
+        }
+
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        body { 
+            display: flex;
+            justify-content: center;
+            align-items: flex-end;
+            /* PWAモードでのビューポート高さズレを補正 */
+            min-height: 100vh;
+            min-height: -webkit-fill-available;
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+            transition: background 0.5s ease;
+            /* Safe Areaをbodyのpaddingで確保 */
+            padding-top: var(--sat);
+            padding-right: var(--sar);
+            padding-bottom: var(--sab);
+            padding-left: var(--sal);
+        }
+
+        .app-wrap {
+            width: 95%;
+            max-width: 380px;
+            display: flex;
+            flex-direction: column;
+            max-height: 98vh;
+        }
+
+        /* --- 体験版：残り回数カウンター --- */
+        .trial-counter-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 16px;
+            border-radius: 16px;
+            margin-bottom: 10px;
+            font-size: 13px;
+            font-weight: 600;
+            flex-shrink: 0;
+        }
+        .trial-counter-bar .count-num {
+            font-size: 18px;
+            margin: 0 2px;
+        }
+        .trial-counter-bar.danger {
+            background: rgba(220,53,69,0.15) !important;
+            color: #ff8080 !important;
+        }
+
+        /* --- 体験版：上限お知らせモーダル --- */
+        .limit-modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.6);
+            z-index: 3000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .limit-modal-overlay.show { display: flex; }
+        .limit-modal-box {
+            background: #ffffff;
+            color: #333;
+            border-radius: 20px;
+            max-width: 320px;
+            width: 100%;
+            padding: 26px 22px 20px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.4);
+            position: relative;
+            text-align: center;
+        }
+        .limit-modal-box .modal-close-x {
+            position: absolute;
+            top: 10px; right: 14px;
+            background: none;
+            border: none;
+            font-size: 22px;
+            line-height: 1;
+            color: #999;
+            cursor: pointer;
+        }
+        .limit-modal-box h5 {
+            font-size: 17px;
+            font-weight: 700;
+            margin: 0 0 14px;
+            padding-right: 10px;
+            color: #222;
+        }
+        .limit-modal-box p {
+            font-size: 13.5px;
+            line-height: 1.6;
+            margin: 0 0 10px;
+            color: #555;
+        }
+        .limit-modal-actions {
+            margin-top: 18px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .limit-modal-actions .btn-product {
+            display: block;
+            background: linear-gradient(135deg, #a855f7, #7c3aed);
+            color: #fff;
+            text-decoration: none;
+            font-weight: 700;
+            padding: 11px;
+            border-radius: 12px;
+            font-size: 14px;
+        }
+        .limit-modal-actions .btn-close-modal {
+            background: none;
+            border: none;
+            color: #888;
+            font-size: 13px;
+            padding: 6px;
+            cursor: pointer;
+        }
+
+        .calculator { 
+            width: 100%;
+            padding: 15px;
+            border-radius: 30px; 
+            transition: all 0.5s ease; 
+            display: flex;
+            flex-direction: column;
+            box-sizing: border-box;
+        }
+                
+        #display { 
+            width: 100%;
+            min-height: 100px; 
+            font-size: 50px;
+            text-align: right;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end; 
+            margin-bottom: 15px;
+            font-weight: 300;
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: clip; 
+        }
+                
+        .buttons { 
+            display: grid; 
+            grid-template-columns: repeat(4, 1fr); 
+            gap: 10px;
+        }
+
+        button {
+            aspect-ratio: 1 / 1;
+            min-height: 50px;
+            font-size: 24px; 
+            line-height: 1; 
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            white-space: nowrap; 
+            overflow: hidden;
+            touch-action: manipulation;
+            /* ボタンが縮まないよう保証 */
+            min-width: 0;
+            width: 100%;
+            border: none;
+            cursor: pointer;
+        }
+
+        button:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .mod-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            padding: 2px 10px;
+            margin: 0 8px;
+            height: 36px;
+            font-size: 20px;
+            font-weight: bold;
+        }
+
+        /* --- Theme: Glass --- */
+        body.theme-glass {
+            background: #0f172a;
+            position: relative;
+            overflow: hidden;
+        }
+        body.theme-glass::before, body.theme-glass::after {
+            content: "";
+            position: fixed; /* absoluteからfixedに変更してPWAでも正しく表示 */
+            width: 500px;
+            height: 500px;
+            border-radius: 50%;
+            filter: blur(100px);
+            z-index: -1;
+            animation: move-glass 12s infinite alternate ease-in-out;
+        }
+        body.theme-glass::before {
+            background: radial-gradient(circle, rgba(76,161,175,0.7) 0%, rgba(76,161,175,0) 70%);
+            top: -10%;
+            left: -10%;
+        }
+        body.theme-glass::after {
+            background: radial-gradient(circle, rgba(168,85,247,0.6) 0%, rgba(168,85,247,0) 70%);
+            bottom: -10%;
+            right: -10%;
+            animation-delay: -5s;
+        }
+        @keyframes move-glass {
+            0% { transform: translate(0, 0) scale(1); }
+            100% { transform: translate(100px, -50px) scale(1.1); }
+        }
+        .theme-glass .calculator {
+            background: rgba(255,255,255,0.07);
+            backdrop-filter: blur(30px) saturate(200%);
+            border: 1px solid rgba(255,255,255,0.2);
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);
+        }
+        .theme-glass #display { color: #ffffff; text-shadow: 0 0 20px rgba(255,255,255,0.3); }
+        .theme-glass button { background: rgba(255,255,255,0.1); color: #ffffff; border: 1px solid rgba(255,255,255,0.1); border-radius: 20px; }
+        .theme-glass button:active { background: rgba(255,255,255,0.2); transform: scale(0.95); }
+        .theme-glass .operator { background: rgba(168,85,247,0.15); color: #d8b4fe; font-weight: bold; }
+        .theme-glass .mod-badge { background: linear-gradient(135deg, #a855f7, #7c3aed); color: #ffffff; }
+        .theme-glass .trial-counter-bar { background: rgba(255,255,255,0.1); color: #e2e8f0; border: 1px solid rgba(255,255,255,0.15); }
+
+        /* --- Theme: Soft UI --- */
+        body.theme-soft { background-color: #e0d7c7; }
+        .theme-soft .calculator { background: #e0d7c7; padding: 20px; }
+        .theme-soft .buttons { gap: 12px; }
+        .theme-soft #display { color: #4a4a4a; box-shadow: inset 6px 6px 12px #b8b0a1, inset -6px -6px 12px #ffffff; border-radius: 20px; padding: 0 15px; margin-bottom: 25px; }
+        .theme-soft button { background: #e0d7c7; color: #4a4a4a; border-radius: 50%; box-shadow: 6px 6px 12px #b8b0a1, -6px -6px 12px #ffffff; font-size: 32px; }
+        .theme-soft button:active { box-shadow: inset 4px 4px 8px #b8b0a1, inset -4px -4px 8px #ffffff; transform: scale(0.94); }
+        .theme-soft .operator { color: #5d7a8c; font-size: 36px; font-weight: bold; }
+        .theme-soft .mod-badge { background: #5d7a8c; color: white; }
+        .theme-soft .trial-counter-bar { background: #d8cfbd; color: #4a4a4a; box-shadow: 4px 4px 8px #b8b0a1, -4px -4px 8px #ffffff; }
+        .theme-soft .trial-counter-bar.danger { background: #e9c3c3 !important; color: #7a2c2c !important; }
+
+        /* --- Theme: Cyber --- */
+        body.theme-cyber { background-color: #050505; }
+        .theme-cyber .calculator { background: #000; border: 2px solid #0ff; box-shadow: 0 0 20px #0ff; }
+        .theme-cyber #display { color: #0ff; text-shadow: 0 0 10px #0ff; font-family: 'Courier New', monospace; }
+        .theme-cyber button { background: #111; color: #0ff; border: 1px solid #0ff; border-radius: 5px; text-shadow: 0 0 5px #0ff; }
+        .theme-cyber .operator { color: #f0f; border-color: #f0f; }
+        .theme-cyber .mod-badge { border: 1px solid #f0f; color: #f0f; }
+        .theme-cyber .trial-counter-bar { background: #111; color: #0ff; border: 1px solid #0ff; text-shadow: 0 0 5px #0ff; }
+        .theme-cyber .trial-counter-bar.danger { background: #1a0510 !important; color: #f0f !important; border-color: #f0f !important; }
+    </style>
+</head>
+<body class="theme-glass">
+
+    <!-- 💡 体験版の上限お知らせモーダル -->
+    <div id="limit-modal-overlay" class="limit-modal-overlay">
+        <div class="limit-modal-box">
+            <button type="button" class="modal-close-x" onclick="closeLimitModal()" aria-label="閉じる">&times;</button>
+            <h5>本日の体験回数の上限に達しました</h5>
+            <p>体験版は<strong>1日最大10回</strong>までご利用いただけます。</p>
+            <p>残り回数は<strong>明日0時に3回分</strong>自動回復しますので、また明日お試しください。</p>
+            <div class="limit-modal-actions">
+                <a href="#" id="product-link-in-modal" target="_blank" class="btn-product">製品版をチェックする</a>
+                <button type="button" class="btn-close-modal" onclick="closeLimitModal()">閉じる</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="app-wrap">
+        <div id="trial-counter-bar" class="trial-counter-bar">
+            <span>【体験版】残り<span class="count-num" id="remaining-count">10</span>/10回</span>
+            <span style="font-weight:400; opacity:0.8;">毎日0時+3回復</span>
+        </div>
+
+        <div class="calculator">
+            <div id="display">0</div>
+            <div class="buttons">
+                <button class="special" onclick="clearDisplay()">AC</button>
+                <button class="special" onclick="undo()">⤺</button>
+                <button class="special" onclick="redo()">⤻</button>
+                <button class="operator" onclick="appendOperator('余り')">余</button>
+                
+                <button onclick="appendNumber('7')">7</button>
+                <button onclick="appendNumber('8')">8</button>
+                <button onclick="appendNumber('9')">9</button>
+                <button class="operator" onclick="appendOperator('×')">×</button>
+                
+                <button onclick="appendNumber('4')">4</button>
+                <button onclick="appendNumber('5')">5</button>
+                <button onclick="appendNumber('6')">6</button>
+                <button class="operator" onclick="appendOperator('−')">−</button>
+                
+                <button onclick="appendNumber('1')">1</button>
+                <button onclick="appendNumber('2')">2</button>
+                <button onclick="appendNumber('3')">3</button>
+                <button class="operator" onclick="appendOperator('+')">+</button>
+                
+                <button class="special" onclick="toggleTheme()">🎨</button>
+                <button onclick="appendNumber('0')">0</button>
+                <button onclick="appendNumber('.')">.</button>
+                <button class="operator" id="equal-btn" onclick="calculate()">=</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 💡 製品版ページのURL（決まり次第、ここだけ書き換えればOK）
+        const PRODUCT_URL = "#"; // TODO: 製品版ページのURLが決まったらここを書き換えてください
+
+        // 💡 体験版：回数制限の定数
+        const MAX_COUNT = 10;
+        const DAILY_RECOVERY = 3;
+        const STORAGE_COUNT_KEY = 'mod_calc_trial_count';
+        const STORAGE_DATE_KEY = 'mod_calc_trial_date';
+
+        const display = document.getElementById('display');
+        let rawInput = "0", history = ["0"], historyStep = 0, shouldReset = false;
+        const themes = ['glass', 'soft', 'cyber'];
+
+        window.onload = function() {
+            const savedTheme = localStorage.getItem('user_calc_theme');
+            if (savedTheme && themes.includes(savedTheme)) {
+                document.body.className = 'theme-' + savedTheme;
+            }
+            document.getElementById('product-link-in-modal').href = PRODUCT_URL;
+            updateRecoveryAndDisplay();
+        };
+
+        function toggleTheme() {
+            let currentTheme = document.body.className.replace('theme-', '');
+            let nextIndex = (themes.indexOf(currentTheme) + 1) % themes.length;
+            let nextTheme = themes[nextIndex];
+            document.body.className = 'theme-' + nextTheme;
+            localStorage.setItem('user_calc_theme', nextTheme);
+        }
+
+        /* --- 💡 体験版：回数管理ロジック --- */
+        function getTodayString() {
+            const now = new Date();
+            return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+        }
+
+        function updateRecoveryAndDisplay() {
+            let count = parseInt(localStorage.getItem(STORAGE_COUNT_KEY) ?? MAX_COUNT);
+            let lastDateStr = localStorage.getItem(STORAGE_DATE_KEY);
+            const todayStr = getTodayString();
+
+            if (lastDateStr && lastDateStr !== todayStr) {
+                const lastDate = new Date(lastDateStr);
+                const today = new Date(todayStr);
+                const diffTime = Math.abs(today - lastDate);
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+                count += (diffDays * DAILY_RECOVERY);
+                if (count > MAX_COUNT) count = MAX_COUNT;
+
+                localStorage.setItem(STORAGE_COUNT_KEY, count);
+            } else if (!lastDateStr) {
+                localStorage.setItem(STORAGE_COUNT_KEY, count);
+            }
+            localStorage.setItem(STORAGE_DATE_KEY, todayStr);
+
+            document.getElementById('remaining-count').textContent = count;
+            const counterBar = document.getElementById('trial-counter-bar');
+            const equalBtn = document.getElementById('equal-btn');
+
+            if (count <= 0) {
+                counterBar.classList.add('danger');
+                if (equalBtn) equalBtn.disabled = true;
+                showLimitModal();
+            } else {
+                counterBar.classList.remove('danger');
+                if (equalBtn) equalBtn.disabled = false;
+            }
+            return count;
+        }
+
+        function consumeOneCount() {
+            let count = parseInt(localStorage.getItem(STORAGE_COUNT_KEY) ?? MAX_COUNT);
+            count -= 1;
+            localStorage.setItem(STORAGE_COUNT_KEY, count);
+            updateRecoveryAndDisplay();
+        }
+
+        function showLimitModal() {
+            document.getElementById('limit-modal-overlay').classList.add('show');
+        }
+        function closeLimitModal() {
+            document.getElementById('limit-modal-overlay').classList.remove('show');
+        }
+        document.addEventListener('click', (e) => {
+            if (e.target && e.target.id === 'limit-modal-overlay') closeLimitModal();
+        });
+
+        function formatNumbers(str) {
+            return str.replace(/(\d+)(\.\d+)?/g, (match, p1, p2) => {
+                let integerPart = p1.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+                return p2 ? integerPart + p2 : integerPart;
+            });
+        }
+
+        function updateDisplay() {
+            let formattedText = formatNumbers(rawInput);
+            let len = formattedText.length;
+            if (len > 16) display.style.fontSize = "22px";
+            else if (len > 12) display.style.fontSize = "30px";
+            else if (len > 8) display.style.fontSize = "40px";
+            else display.style.fontSize = "50px";
+        
+            // 漢字の「余り」（計算途中）だけをバッジ化し、ひらがなの「あまり」（結果）はそのまま表示
+            display.innerHTML = formattedText.replace(/余り/g, '<span class="mod-badge">余り</span>');
+        }
+
+        function saveHistory() {
+            if (history[historyStep] === rawInput) return;
+            history = history.slice(0, historyStep + 1);
+            history.push(rawInput);
+            historyStep++;
+        }
+
+        function appendNumber(num) {
+            if (shouldReset) {
+                rawInput = (num === '.') ? '0.' : num;
+                shouldReset = false;
+            } else {
+                if (num === '.') {
+                    let parts = rawInput.split(/[+−×余り]/);
+                    if (parts[parts.length - 1].includes('.')) return;
+                    rawInput += '.';
+                } else {
+                    rawInput = (rawInput === '0') ? num : rawInput + num;
+                }
+            }
+            saveHistory(); updateDisplay();
+        }
+
+        function appendOperator(op) {
+            shouldReset = false;
+            // 【ここを修正】答えが「あまり」で表示されている状態で、次の演算子が押されたら右側の数値（余り）を引き継ぐ
+            if (rawInput.includes(' あまり ')) {
+                let parts = rawInput.split(' あまり ');
+                rawInput = parts[1].replace(/,/g, ''); 
+            }
+            const ops = ['+', '−', '×', '余り'];
+            let lastLen = rawInput.endsWith('余り') ? 2 : (ops.includes(rawInput.slice(-1)) ? 1 : 0);
+            if (lastLen > 0) {
+                rawInput = rawInput.slice(0, -lastLen) + op;
+            } else {
+                rawInput += op;
+            }
+            saveHistory(); updateDisplay();
+        }
+
+        // 小数の桁数を取得するヘルパー関数
+        function getDecimalPlaces(num) {
+            const match = ('' + num).match(/(?:\.(\d+))?(?:[eE]([+-]?\d+))?$/);
+            if (!match) return 0;
+            return Math.max(0, (match[1] ? match[1].length : 0) - (match[2] ? +match[2] : 0));
+        }
+        
+        function calculate() {
+            // 💡 1. 残り回数のガードチェック（0ならモーダルでお知らせして終了）
+            let count = parseInt(localStorage.getItem(STORAGE_COUNT_KEY) ?? MAX_COUNT);
+            if (count <= 0) {
+                showLimitModal();
+                return;
+            }
+
+            try {
+                let res = "";
+                if (rawInput.includes('余り')) {
+                    let parts = rawInput.split('余り');
+                    let a = Function('return ' + parts[0].replace(/×/g, '*').replace(/−/g, '-'))();
+                    let b = Function('return ' + parts[1].replace(/×/g, '*').replace(/−/g, '-'))();
+                    
+                    if (b === 0) {
+                        res = "Error";
+                    } else {
+                        // 小数第2位などの計算誤差を排除するロジック
+                        const aPlaces = getDecimalPlaces(a);
+                        const bPlaces = getDecimalPlaces(b);
+                        const maxPlaces = Math.max(aPlaces, bPlaces);
+                        const factor = Math.pow(10, maxPlaces);
+        
+                        const intA = Math.round(a * factor);
+                        const intB = Math.round(b * factor);
+        
+                        let quotient = Math.trunc(intA / intB); 
+                        let remainder = (intA % intB) / factor; 
+        
+                        let fixedRemainder = parseFloat(remainder.toFixed(maxPlaces));
+        
+                        // 【ここを修正】答えの表示には分かりやすい「あまり」を採用
+                        res = quotient + " あまり " + fixedRemainder;
+                    }
+                } else {
+                    let exp = rawInput.replace(/×/g, '*').replace(/−/g, '-');
+                    let val = Function('return ' + exp)();
+                    if (!isFinite(val)) {
+                        res = "Error";
+                    } else {
+                        let formatted = parseFloat(val.toPrecision(12));
+                        res = String(formatted);
+                        if (res.length > 13 || Math.abs(val) > 1e12 || (Math.abs(val) < 1e-7 && val !== 0)) {
+                            res = val.toExponential(9).replace(/\.?0+e/, 'e').replace(/\+/, '');
+                        }
+                    }
+                }
+                rawInput = res; 
+                updateDisplay(); saveHistory(); 
+                shouldReset = true;
+
+                // 💡 2. 計算に成功したら回数を1つ消費する
+                consumeOneCount();
+            } catch (e) { display.innerText = 'Error'; rawInput = '0'; }
+        }
+
+        function clearDisplay() { rawInput = '0'; history = ["0"]; historyStep = 0; shouldReset = false; updateDisplay(); }
+        function undo() { if (historyStep > 0) { historyStep--; rawInput = history[historyStep]; shouldReset = false; updateDisplay(); } }
+        function redo() { if (historyStep < history.length - 1) { historyStep++; rawInput = history[historyStep]; shouldReset = false; updateDisplay(); } }
+    </script>
+</body>
+</html>
